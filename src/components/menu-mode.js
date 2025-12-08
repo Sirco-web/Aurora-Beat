@@ -46,6 +46,7 @@ AFRAME.registerComponent('menu-mode', {
       this.el.sceneEl.emit('gamemode', modeMap[localStorage.getItem('gameMode') || 'punchvr']);
     } else {
       this.setModeOption('touch2d');
+      this.el.sceneEl.emit('gamemode', 'touch');
     }
   },
 

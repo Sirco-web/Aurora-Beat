@@ -157,7 +157,8 @@ AFRAME.registerComponent('super-keyboard', {
         shader: 'flat',
         src: this.data.imagePath + '/' + kbdata.img,
         color: this.data.keyColor,
-        transparent: true
+        transparent: true,
+        depthTest: false
       });
     }
 
@@ -246,7 +247,9 @@ AFRAME.registerComponent('super-keyboard', {
         if (this.keyHover !== k) {
           // Update key hover.
           this.keyHover = k;
-          this.updateKeyColorPlane(this.keyHover.key, this.keyHoverColor);
+          if (this.keyHover) {
+            this.updateKeyColorPlane(this.keyHover.key, this.keyHoverColor);
+          }
         }
         break;
       }
@@ -272,7 +275,7 @@ AFRAME.registerComponent('super-keyboard', {
     keyColorPlane.object3D.visible = false;
     keyColorPlane.setAttribute('geometry', {primitive: 'plane'});
     keyColorPlane.setAttribute('material', {shader: 'flat', color: this.data.keyBgColor,
-                                            transparent: true});
+                                            transparent: true, depthTest: false});
     keyColorPlane.addEventListener('componentinitialized', function (evt) {
       if (evt.detail.name !== 'material') { return; }
       this.getObject3D('mesh').material.blending = THREE.AdditiveBlending;
@@ -452,7 +455,9 @@ AFRAME.registerComponent('super-keyboard', {
     this.updateKeyColorPlane(this.keyHover.key, this.keyPressColor);
     var self = this;
     setTimeout(function () {
-      self.updateKeyColorPlane(self.keyHover.key, self.keyHoverColor);
+      if (self.keyHover) {
+        self.updateKeyColorPlane(self.keyHover.key, self.keyHoverColor);
+      }
     }, 100);
     this.updateCursorPosition();
   },

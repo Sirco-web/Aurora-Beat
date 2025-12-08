@@ -113,6 +113,8 @@ AFRAME.registerComponent('beat-system', {
 
     if (oldData.gameMode !== this.data.gameMode) {
       this.weapons = this.data.gameMode === CLASSIC ? this.blades : this.fists;
+      // For touch mode, we don't really have weapons in the same way, but we can default to fists
+      if (this.data.gameMode === TOUCH) { this.weapons = this.fists; }
     }
   },
 
@@ -323,11 +325,34 @@ AFRAME.registerComponent('beat', {
     } else {
       this.poolName = `pool__beat-${this.data.type}-${this.data.color}`;
     }
+
+    // Add click listener for touch/mouse interaction
+    this.onBeatClick = () => {
+      if (this.beatSystem && this.beatSystem.data.gameMode === TOUCH && !this.destroyed) {
+        // Mock weaponEl for onHit
+        const mockWeaponEl = {
+          components: {
+            haptics__beat: { pulse: () => {} },
+            blade: { strokeDirectionVector: new THREE.Vector3(0, -1, 0), strokeSpeed: 10 },
+            punch: { speed: 10 }
+          },
+          dataset: { hand: 'right' }
+        };
+        this.onHit(mockWeaponEl);
+      }
+    };
+    this.el.addEventListener('click', this.onBeatClick);
+    
+    // Make beats raycastable for touch mode
+    this.el.classList.add('touchBeat');
   },
 
   tick: function (time, timeDelta) {
     const el = this.el;
     const data = this.data;
+
+    // Cap timeDelta to prevent huge jumps after pause/lag
+    if (timeDelta > 100) { timeDelta = 100; }
 
     // Delay these events into next frame to spread out the workload.
     if (this.queueBeatHitEvent) {
@@ -344,7 +369,8 @@ AFRAME.registerComponent('beat', {
       return;
     }
 
-    if (!this.data.isPlaying || this.data.gameMode === RIDE || this.data.gameMode === TOUCH) { return; }
+    // Use beatSystem.data for isPlaying and gameMode since beat component doesn't have these in its schema
+    if (!this.beatSystem.data.isPlaying || this.beatSystem.data.gameMode === RIDE) { return; }
 
     // Warmup animation.
     if (this.warmupTime < WARMUP_TIME) {
@@ -490,7 +516,9 @@ AFRAME.registerComponent('beat', {
     }
 
     if (this.beatSystem.data.gameMode === CLASSIC && correctHit) {
-      weaponEl.components.trail.pulse();
+      if (weaponEl.components && weaponEl.components.trail) {
+        weaponEl.components.trail.pulse();
+      }
     }
   },
 

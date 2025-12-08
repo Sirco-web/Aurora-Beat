@@ -184,6 +184,11 @@ AFRAME.registerComponent('beat-generator', {
       this.beatData._obstacles = [];
     }
 
+    // Optimize: If too many notes, maybe we should warn or simplify?
+    // For now, we just proceed. The main bottleneck is likely the synchronous processing above.
+    // We can't easily make this async without refactoring the whole loader flow.
+    // But we can ensure we don't crash on huge arrays.
+
     // Some events have negative time stamp to initialize the stage.
     const events = this.beatData._events;
     if (events.length && events[0]._time < 0) {
@@ -206,6 +211,9 @@ AFRAME.registerComponent('beat-generator', {
   tick: function (time, delta) {
     if (!this.data.isPlaying || !this.data.challengeId || !this.beatData) { return; }
     if (!this.beatDataProcessed) { return; }
+
+    // Cap delta to prevent huge jumps
+    if (delta > 100) { delta = 100; }
 
     let songTime;
     const song = this.el.components.song;
@@ -288,7 +296,7 @@ AFRAME.registerComponent('beat-generator', {
       return;
     }
 
-    if (AFRAME.utils.getUrlParameter('dot') || data.gameMode === 'punch') { type = 'dot'; }
+    if (AFRAME.utils.getUrlParameter('dot') || data.gameMode === 'punch' || data.gameMode === 'touch') { type = 'dot'; }
 
     const beatEl = this.requestBeat(type, color);
     if (!beatEl) { return; }

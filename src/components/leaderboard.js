@@ -108,13 +108,18 @@ AFRAME.registerComponent('leaderboard', {
     if (this.data.gameMode === 'ride') { return; }
 
     const state = this.el.sceneEl.systems.state.state;
+    
+    // Safety check for difficulty access
+    let difficulty = '';
+    if (state.menuSelectedChallenge && state.menuSelectedChallenge.id) {
+      difficulty = state.menuSelectedChallenge.difficulty;
+    } else if (state.challenge) {
+      difficulty = state.challenge.difficulty;
+    }
+
     const query = this.db
       .where('challengeId', '==', challengeId)
-      .where(
-        'difficulty', '==',
-        state.menuSelectedChallenge.id
-          ? state.menuSelectedChallenge.difficulty
-          : state.challenge.difficulty)
+      .where('difficulty', '==', difficulty)
       .where('gameMode', '==', this.data.gameMode)
       .orderBy('score', 'desc')
       .orderBy('time', 'asc')

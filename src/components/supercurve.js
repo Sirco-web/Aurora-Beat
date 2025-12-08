@@ -40,7 +40,7 @@ AFRAME.registerComponent('supercurve', {
   generateCurve: function (length) {
     this.length = length;
 
-    length += EXTRA_LENGTH; // Add extra length for anticipation time past song duration.
+    length += EXTRA_LENGTH * 2; // Add extra length for anticipation time past song duration.
     this.fullLength = length;
 
     this.points.length = 0;

@@ -43,19 +43,25 @@ AFRAME.registerComponent('touch-beat', {
   },
 
   update: function (oldData) {
-    const canvas = this.el.sceneEl.canvas;
-    if (!canvas) return;
-    
-    if (this.data.enabled && !oldData.enabled) {
-      // Enable touch/click mode
-      canvas.addEventListener('mousedown', this.onMouseDown);
-      canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
-      console.log('Touch beat mode enabled');
-    } else if (!this.data.enabled && oldData.enabled) {
-      // Disable touch/click mode
-      canvas.removeEventListener('mousedown', this.onMouseDown);
-      canvas.removeEventListener('touchstart', this.onTouchStart);
-      console.log('Touch beat mode disabled');
+    try {
+      const canvas = this.el.sceneEl.canvas;
+      if (!canvas) return;
+      
+      const oldEnabled = oldData ? oldData.enabled : false;
+      
+      if (this.data.enabled && !oldEnabled) {
+        // Enable touch/click mode
+        canvas.addEventListener('mousedown', this.onMouseDown);
+        canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
+        console.log('Touch beat mode enabled');
+      } else if (!this.data.enabled && oldEnabled) {
+        // Disable touch/click mode
+        canvas.removeEventListener('mousedown', this.onMouseDown);
+        canvas.removeEventListener('touchstart', this.onTouchStart);
+        console.log('Touch beat mode disabled');
+      }
+    } catch (e) {
+      console.error('TouchBeat update failed:', e);
     }
   },
 
@@ -128,15 +134,19 @@ AFRAME.registerComponent('touch-beat', {
       if (beatEl) {
         // Trigger hit on the beat
         const beatComponent = beatEl.components.beat;
-        if (beatComponent) {
-          // Create a dummy weapon element for the hit
-          const weaponEl = document.createElement('a-entity');
-          // Add haptics component mock to avoid errors
-          weaponEl.components = {
-            haptics__beat: { pulse: function() {} }
+        if (beatComponent && !beatComponent.destroyed) {
+          // Create a mock weapon element for the hit
+          const mockWeaponEl = {
+            components: {
+              haptics__beat: { pulse: function() {} },
+              blade: { strokeDirectionVector: new THREE.Vector3(0, -1, 0), strokeSpeed: 10 },
+              punch: { speed: 10 },
+              trail: { pulse: function() {} }
+            },
+            dataset: { hand: 'right' }
           };
           
-          beatComponent.onHit(weaponEl);
+          beatComponent.onHit(mockWeaponEl);
           
           // Show hit effect
           this.showHitEffect(intersects[0].point);
@@ -218,17 +228,23 @@ AFRAME.registerComponent('touch-cursor', {
   },
 
   update: function (oldData) {
-    const canvas = this.el.sceneEl.canvas;
-    if (!canvas) return;
-    
-    if (this.data.enabled && !oldData.enabled) {
-      canvas.addEventListener('mousemove', this.onMouseMove);
-      canvas.addEventListener('touchmove', this.onTouchMove, { passive: true });
-      this.cursorEl.setAttribute('visible', true);
-    } else if (!this.data.enabled && oldData.enabled) {
-      canvas.removeEventListener('mousemove', this.onMouseMove);
-      canvas.removeEventListener('touchmove', this.onTouchMove);
-      this.cursorEl.setAttribute('visible', false);
+    try {
+      const canvas = this.el.sceneEl.canvas;
+      if (!canvas) return;
+      
+      const oldEnabled = oldData ? oldData.enabled : false;
+      
+      if (this.data.enabled && !oldEnabled) {
+        canvas.addEventListener('mousemove', this.onMouseMove);
+        canvas.addEventListener('touchmove', this.onTouchMove, { passive: true });
+        if (this.cursorEl) this.cursorEl.setAttribute('visible', true);
+      } else if (!this.data.enabled && oldEnabled) {
+        canvas.removeEventListener('mousemove', this.onMouseMove);
+        canvas.removeEventListener('touchmove', this.onTouchMove);
+        if (this.cursorEl) this.cursorEl.setAttribute('visible', false);
+      }
+    } catch (e) {
+      console.error('TouchCursor update failed:', e);
     }
   },
 

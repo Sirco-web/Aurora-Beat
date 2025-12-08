@@ -71,40 +71,52 @@ AFRAME.registerComponent('multiplayer', {
     // Create a simple menu for Room selection
     this.menuEl = document.createElement('a-entity');
     this.menuEl.setAttribute('visible', false);
-    this.menuEl.setAttribute('position', '0 1.5 -1');
+    this.menuEl.setAttribute('position', '0 1.5 -2.5');
     
     // Background - increased height for avatar button
     const bg = document.createElement('a-entity');
     bg.setAttribute('geometry', 'primitive: plane; width: 1.5; height: 1.6');
-    bg.setAttribute('material', 'color: #222; opacity: 0.9');
+    bg.setAttribute('material', 'shader: panelShader; brightness: 0.1; ratio: 1; borderWidth: 0.002');
+    bg.setAttribute('position', '0 0 -0.01'); // Slightly behind to not block raycasts
     this.menuEl.appendChild(bg);
 
     // Title
     const title = document.createElement('a-entity');
+    title.setAttribute('mixin', 'font');
     title.setAttribute('text', {
         value: 'MULTIPLAYER LOBBY',
         align: 'center',
-        width: 3
+        width: 3,
+        color: '#FFF'
     });
     title.setAttribute('position', '0 0.55 0.01');
     this.menuEl.appendChild(title);
 
     // Create Classic Button (only for VR)
     this.classicButton = this.createButton('Create Classic Room', 0.35, () => {
-        this.isHost = true;
-        this.socket.emit('createRoom', { mode: 'classic', avatar: this.getLocalAvatar() });
+        if (!this.socket) this.connect();
+        if (this.socket) {
+            this.isHost = true;
+            this.socket.emit('createRoom', { mode: 'classic', avatar: this.getLocalAvatar() });
+        }
     });
 
     // Create Punch Button (only for VR)
     this.punchButton = this.createButton('Create Punch Room', 0.2, () => {
-        this.isHost = true;
-        this.socket.emit('createRoom', { mode: 'punch', avatar: this.getLocalAvatar() });
+        if (!this.socket) this.connect();
+        if (this.socket) {
+            this.isHost = true;
+            this.socket.emit('createRoom', { mode: 'punch', avatar: this.getLocalAvatar() });
+        }
     });
     
     // Create Touch Room Button (for browser/non-VR)
     this.touchButton = this.createButton('Create Touch Room', 0.05, () => {
-        this.isHost = true;
-        this.socket.emit('createRoom', { mode: 'touch', avatar: this.getLocalAvatar() });
+        if (!this.socket) this.connect();
+        if (this.socket) {
+            this.isHost = true;
+            this.socket.emit('createRoom', { mode: 'touch', avatar: this.getLocalAvatar() });
+        }
     });
 
     // Join Button - shows keyboard
@@ -120,16 +132,14 @@ AFRAME.registerComponent('multiplayer', {
     // Ready Button (hidden until in room)
     this.readyButton = document.createElement('a-entity');
     this.readyButton.setAttribute('visible', false);
-    this.readyButton.setAttribute('geometry', 'primitive: plane; width: 1.2; height: 0.12');
-    this.readyButton.setAttribute('material', 'color: #228822');
+    this.readyButton.setAttribute('mixin', 'bigMenuButton');
     this.readyButton.setAttribute('position', '0 -0.4 0.01');
-    this.readyButton.classList.add('raycastable');
+    this.readyButton.setAttribute('raycastable', '');
     const readyText = document.createElement('a-entity');
-    readyText.setAttribute('text', { value: 'READY', align: 'center', width: 2 });
+    readyText.setAttribute('mixin', 'font');
+    readyText.setAttribute('text', { value: 'READY', align: 'center', width: 2, color: '#FFF' });
     readyText.setAttribute('position', '0 0 0.01');
     this.readyButton.appendChild(readyText);
-    this.readyButton.addEventListener('mouseenter', () => this.readyButton.setAttribute('material', 'color', '#33aa33'));
-    this.readyButton.addEventListener('mouseleave', () => this.readyButton.setAttribute('material', 'color', '#228822'));
     this.readyButton.addEventListener('click', () => {
         if (this.socket && this.currentRoomCode) {
             this.socket.emit('playerReady');
@@ -141,6 +151,7 @@ AFRAME.registerComponent('multiplayer', {
     
     // Room Code Display
     this.roomCodeText = document.createElement('a-entity');
+    this.roomCodeText.setAttribute('mixin', 'font');
     this.roomCodeText.setAttribute('text', {
         value: '',
         align: 'center',
@@ -152,6 +163,7 @@ AFRAME.registerComponent('multiplayer', {
     
     // Status text (countdown, waiting for players, etc.)
     this.statusText = document.createElement('a-entity');
+    this.statusText.setAttribute('mixin', 'font');
     this.statusText.setAttribute('text', {
         value: '',
         align: 'center',
@@ -163,6 +175,7 @@ AFRAME.registerComponent('multiplayer', {
     
     // Players list
     this.playersListText = document.createElement('a-entity');
+    this.playersListText.setAttribute('mixin', 'font');
     this.playersListText.setAttribute('text', {
         value: '',
         align: 'center',
@@ -185,6 +198,7 @@ AFRAME.registerComponent('multiplayer', {
     
     // Keyboard background/label
     const kbLabel = document.createElement('a-entity');
+    kbLabel.setAttribute('mixin', 'font');
     kbLabel.setAttribute('text', {
         value: 'Enter Room Code:',
         align: 'center',
@@ -211,7 +225,7 @@ AFRAME.registerComponent('multiplayer', {
         keyHoverColor: '#fff',
         maxLength: 4
     });
-    this.roomCodeKeyboard.classList.add('raycastable');
+    this.roomCodeKeyboard.setAttribute('raycastable', '');
     this.roomCodeKeyboard.classList.add('keyboardRaycastable');
     this.roomCodeKeyboard.addEventListener('superkeyboardinput', this.onKeyboardInput);
     this.roomCodeKeyboard.addEventListener('superkeyboarddismiss', () => {
@@ -221,16 +235,15 @@ AFRAME.registerComponent('multiplayer', {
     
     // Cancel button
     const cancelBtn = document.createElement('a-entity');
-    cancelBtn.setAttribute('geometry', 'primitive: plane; width: 0.4; height: 0.1');
-    cancelBtn.setAttribute('material', 'color: #aa2222');
+    cancelBtn.setAttribute('mixin', 'bigMenuButton');
+    cancelBtn.setAttribute('geometry', 'width: 0.4; height: 0.1');
     cancelBtn.setAttribute('position', '0 -0.35 0');
-    cancelBtn.classList.add('raycastable');
+    cancelBtn.setAttribute('raycastable', '');
     const cancelText = document.createElement('a-entity');
-    cancelText.setAttribute('text', { value: 'Cancel', align: 'center', width: 1.5 });
+    cancelText.setAttribute('mixin', 'font');
+    cancelText.setAttribute('text', { value: 'Cancel', align: 'center', width: 1.5, color: '#FFF' });
     cancelText.setAttribute('position', '0 0 0.01');
     cancelBtn.appendChild(cancelText);
-    cancelBtn.addEventListener('mouseenter', () => cancelBtn.setAttribute('material', 'color', '#cc3333'));
-    cancelBtn.addEventListener('mouseleave', () => cancelBtn.setAttribute('material', 'color', '#aa2222'));
     cancelBtn.addEventListener('click', () => this.hideJoinKeyboard());
     this.keyboardContainer.appendChild(cancelBtn);
     
@@ -319,72 +332,82 @@ AFRAME.registerComponent('multiplayer', {
   onKeyboardInput: function(evt) {
     const code = evt.detail.value;
     if (code && code.length > 0) {
-        this.isHost = false;
-        // Send both room code and player's mode for compatibility check
-        const playerMode = this.data.hasVR ? 'classic' : 'touch';
-        this.socket.emit('joinRoom', {
-            roomCode: code.toUpperCase(),
-            playerMode: playerMode,
-            avatar: this.getLocalAvatar()
-        });
-        this.hideJoinKeyboard();
+        if (!this.socket) this.connect();
+        if (this.socket) {
+            this.isHost = false;
+            // Send both room code and player's mode for compatibility check
+            const playerMode = this.data.hasVR ? 'classic' : 'touch';
+            this.socket.emit('joinRoom', {
+                roomCode: code.toUpperCase(),
+                playerMode: playerMode,
+                avatar: this.getLocalAvatar()
+            });
+            this.hideJoinKeyboard();
+        }
     }
   },
 
   createButton: function(label, y, callback) {
     const btn = document.createElement('a-entity');
-    btn.setAttribute('geometry', 'primitive: plane; width: 1.2; height: 0.12');
-    btn.setAttribute('material', 'color: #444');
+    btn.setAttribute('mixin', 'bigMenuButton');
     btn.setAttribute('position', `0 ${y} 0.01`);
-    btn.classList.add('raycastable'); // Make sure raycaster can hit it
+    btn.setAttribute('raycastable', ''); // Make sure raycaster can hit it
+    btn.classList.add('raycastable'); // Add class as fallback
     
     const text = document.createElement('a-entity');
-    text.setAttribute('text', { value: label, align: 'center', width: 2 });
+    text.setAttribute('mixin', 'font');
+    text.setAttribute('text', { value: label, align: 'center', width: 2, color: '#FFF' });
     text.setAttribute('position', '0 0 0.01');
     btn.appendChild(text);
 
-    btn.addEventListener('mouseenter', () => btn.setAttribute('material', 'color', '#666'));
-    btn.addEventListener('mouseleave', () => btn.setAttribute('material', 'color', '#444'));
-    btn.addEventListener('click', callback);
+    btn.addEventListener('click', (evt) => {
+        console.log('Button clicked:', label);
+        callback(evt);
+    });
     
     this.menuEl.appendChild(btn);
     return btn;
   },
 
   update: function (oldData) {
-    const isMultiplayer = this.data.gameMode === 'multiplayer';
-    const wasMultiplayer = oldData.gameMode === 'multiplayer';
+    try {
+      const isMultiplayer = this.data.gameMode === 'multiplayer';
+      const wasMultiplayer = oldData && oldData.gameMode === 'multiplayer';
+      const oldEnabled = oldData && oldData.enabled;
 
-    // Update button visibility based on VR status
-    if (this.data.hasVR !== oldData.hasVR || isMultiplayer !== wasMultiplayer) {
-      this.updateButtonVisibility();
-    }
+      // Update button visibility based on VR status
+      if ((oldData && this.data.hasVR !== oldData.hasVR) || isMultiplayer !== wasMultiplayer) {
+        this.updateButtonVisibility();
+      }
 
-    if (isMultiplayer && !wasMultiplayer) {
-      this.connect();
-      if (this.menuEl) this.menuEl.setAttribute('visible', true);
-    } else if (!isMultiplayer && wasMultiplayer) {
-      this.disconnect();
-      if (this.menuEl) this.menuEl.setAttribute('visible', false);
-    }
-    
-    // Fallback to manual enabled check if gameMode isn't used
-    if (this.data.enabled && !oldData.enabled && !this.socket) {
-      this.connect();
-      if (this.menuEl) this.menuEl.setAttribute('visible', true);
-    } else if (!this.data.enabled && oldData.enabled && !isMultiplayer) {
-      this.disconnect();
-      if (this.menuEl) this.menuEl.setAttribute('visible', false);
-    }
+      if (isMultiplayer && !wasMultiplayer) {
+        this.connect();
+        if (this.menuEl) this.menuEl.setAttribute('visible', true);
+      } else if (!isMultiplayer && wasMultiplayer) {
+        this.disconnect();
+        if (this.menuEl) this.menuEl.setAttribute('visible', false);
+      }
+      
+      // Fallback to manual enabled check if gameMode isn't used
+      if (this.data.enabled && !oldEnabled && !this.socket) {
+        this.connect();
+        if (this.menuEl) this.menuEl.setAttribute('visible', true);
+      } else if (!this.data.enabled && oldEnabled && !isMultiplayer) {
+        this.disconnect();
+        if (this.menuEl) this.menuEl.setAttribute('visible', false);
+      }
 
-    // Send score update if connected and score changed
-    if (this.socket && isMultiplayer) {
-        if (this.data.score !== oldData.score || this.data.combo !== oldData.combo) {
-            this.socket.emit('scoreUpdate', {
-                score: this.data.score,
-                combo: this.data.combo
-            });
-        }
+      // Send score update if connected and score changed
+      if (this.socket && isMultiplayer) {
+          if (this.data.score !== (oldData && oldData.score) || this.data.combo !== (oldData && oldData.combo)) {
+              this.socket.emit('scoreUpdate', {
+                  score: this.data.score,
+                  combo: this.data.combo
+              });
+          }
+      }
+    } catch (e) {
+      console.error('Multiplayer update failed:', e);
     }
   },
   
@@ -413,7 +436,18 @@ AFRAME.registerComponent('multiplayer', {
     }
 
     console.log('Connecting to multiplayer server...', url);
-    this.socket = io(url);
+    try {
+      this.socket = io(url);
+      if (!this.socket || typeof this.socket.emit !== 'function') {
+        console.error('Socket.io failed to initialize properly');
+        this.socket = null;
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to connect to multiplayer server:', e);
+      this.socket = null;
+      return;
+    }
 
     this.socket.on('connect', this.onConnect);
     this.socket.on('roomJoined', this.onRoomJoined);
