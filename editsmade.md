@@ -24,3 +24,4 @@
 ## Configuration
 - **Dependencies**: Added `express`, `socket.io`, `socket.io-client`.
 - **Build**: Updated `package.json` scripts to streamline development and production runs.
+- **Cleanup**: Removed duplicate dependency entries in `package.json` and consolidated the `server` script into `start`.
