@@ -158,13 +158,15 @@ AFRAME.registerComponent('beat-generator', {
     
     if (!this.beatData) {
       console.error('[beat-generator] Beat data not found for difficulty: ' + this.data.difficulty);
+      this.el.sceneEl.emit('songloaderror', null, false);
       return;
     }
 
-    // if there is version and first character is 3, convert to 2.xx
-    if (this.beatData.version  && this.beatData.version.charAt(0) === '3') {
-      this.beatData = convertBeatData_320_to_2xx(this.beatData);
-    }
+    try {
+      // if there is version and first character is 3, convert to 2.xx
+      if (this.beatData.version && this.beatData.version.charAt(0) === '3') {
+        this.beatData = convertBeatData_320_to_2xx(this.beatData);
+      }
     // Reset variables used during playback.
     // Beats spawn ahead of the song and get to the user in sync with the music.
     this.songTime = 0;
@@ -192,6 +194,10 @@ AFRAME.registerComponent('beat-generator', {
 
     this.beatDataProcessed = true;
     console.log('[beat-generator] Finished processing beat data.');
+    } catch (e) {
+      console.error('[beat-generator] Error processing beat data:', e);
+      this.el.sceneEl.emit('songloaderror', null, false);
+    }
   },
 
   /**
@@ -199,9 +205,12 @@ AFRAME.registerComponent('beat-generator', {
    */
   tick: function (time, delta) {
     if (!this.data.isPlaying || !this.data.challengeId || !this.beatData) { return; }
+    if (!this.beatDataProcessed) { return; }
 
     let songTime;
     const song = this.el.components.song;
+    if (!song) { return; }
+    
     if (this.preloadTime === undefined) {
       if (!song.isAudioPlaying) { return; }
       // Get current song time.

@@ -5,6 +5,16 @@
   animation__scale="property: scale; from: 1 1 1; to: 1.05 1.05 1.05; dir: alternate; loop: true; dur: 1200; easing: easeInOutCubic"
   position="0 1.5 -2">
 
+  <!-- Aurora Beat Title on Loading Screen -->
+  <a-entity id="loadingTitle" position="0 0.75 0">
+    <a-entity
+      mixin="font"
+      text="value: AURORA BEAT; align: center; width: 2; wrapCount: 20"
+      bind__text="color: colorPrimary"
+      render-order="menuText"
+      animation__pulse="property: components.text.material.uniforms.opacity.value; from: 0.7; to: 1; dir: alternate; loop: true; dur: 1500; easing: easeInOutSine"></a-entity>
+  </a-entity>
+
   <a-entity
     id="loadingMenuBackground"
     bind-toggle__raycastable="isLoading"

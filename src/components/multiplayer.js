@@ -6,14 +6,18 @@ AFRAME.registerComponent('multiplayer', {
     gameMode: { default: '' },
     score: { default: 0 },
     combo: { default: 0 },
-    serverUrl: { default: 'http://localhost:3001' } // Default local dev
+    serverUrl: { default: 'http://localhost:3000' } // Default local dev
   },
 
   init: function () {
     this.otherPlayers = {};
     this.tick = AFRAME.utils.throttleTick(this.tick, 50, this); // 20 updates/sec
+    this.isHost = false;
+    this.playersReady = {};
+    this.allReady = false;
+    this.currentRoomCode = null;
     
-    // Bind methods
+    // Bind methods (stored as instance properties for proper cleanup)
     this.onConnect = this.onConnect.bind(this);
     this.onRoomJoined = this.onRoomJoined.bind(this);
     this.onNewPlayer = this.onNewPlayer.bind(this);
@@ -21,8 +25,30 @@ AFRAME.registerComponent('multiplayer', {
     this.onPlayerScoreUpdated = this.onPlayerScoreUpdated.bind(this);
     this.onPlayerDisconnected = this.onPlayerDisconnected.bind(this);
     this.onError = this.onError.bind(this);
+    this.onSongSelected = this.onSongSelected.bind(this);
+    this.onPlayerReady = this.onPlayerReady.bind(this);
+    this.onCountdown = this.onCountdown.bind(this);
+    this.onStartSong = this.onStartSong.bind(this);
+    this.onKeyboardInput = this.onKeyboardInput.bind(this);
+    this.onHostSongSelect = this.onHostSongSelect.bind(this);
     
     this.createMenu();
+  },
+  
+  remove: function () {
+    // Clean up socket connection
+    this.disconnect();
+    
+    // Remove event listener for host song selection
+    this.el.sceneEl.removeEventListener('menuchallengeselect', this.onHostSongSelect);
+    
+    // Remove menu elements
+    if (this.menuEl && this.menuEl.parentNode) {
+      this.menuEl.parentNode.removeChild(this.menuEl);
+    }
+    if (this.keyboardContainer && this.keyboardContainer.parentNode) {
+      this.keyboardContainer.parentNode.removeChild(this.keyboardContainer);
+    }
   },
 
   createMenu: function() {
@@ -33,7 +59,7 @@ AFRAME.registerComponent('multiplayer', {
     
     // Background
     const bg = document.createElement('a-entity');
-    bg.setAttribute('geometry', 'primitive: plane; width: 1.5; height: 1');
+    bg.setAttribute('geometry', 'primitive: plane; width: 1.5; height: 1.4');
     bg.setAttribute('material', 'color: #222; opacity: 0.9');
     this.menuEl.appendChild(bg);
 
@@ -44,29 +70,47 @@ AFRAME.registerComponent('multiplayer', {
         align: 'center',
         width: 3
     });
-    title.setAttribute('position', '0 0.4 0.01');
+    title.setAttribute('position', '0 0.55 0.01');
     this.menuEl.appendChild(title);
 
     // Create Classic Button
-    this.createButton('Create Classic Room', 0.15, () => {
+    this.createButton('Create Classic Room', 0.35, () => {
+        this.isHost = true;
         this.socket.emit('createRoom', { mode: 'classic' });
     });
 
     // Create Punch Button
-    this.createButton('Create Punch Room', 0, () => {
+    this.createButton('Create Punch Room', 0.2, () => {
+        this.isHost = true;
         this.socket.emit('createRoom', { mode: 'punch' });
     });
 
-    // Join Button (Simple random join for now or prompt)
-    this.createButton('Join Room (Prompt)', -0.15, () => {
-        // Since we can't easily do keyboard in VR without a virtual keyboard component,
-        // we'll use a simple prompt for 2D testing, or auto-join a test room.
-        // For now, let's just prompt in browser (works in 2D mode).
-        const code = window.prompt("Enter Room Code:");
-        if (code) {
-            this.socket.emit('joinRoom', code);
+    // Join Button - shows keyboard
+    this.createButton('Join Room', 0.05, () => {
+        this.showJoinKeyboard();
+    });
+    
+    // Ready Button (hidden until in room)
+    this.readyButton = document.createElement('a-entity');
+    this.readyButton.setAttribute('visible', false);
+    this.readyButton.setAttribute('geometry', 'primitive: plane; width: 1.2; height: 0.12');
+    this.readyButton.setAttribute('material', 'color: #228822');
+    this.readyButton.setAttribute('position', '0 -0.1 0.01');
+    this.readyButton.classList.add('raycastable');
+    const readyText = document.createElement('a-entity');
+    readyText.setAttribute('text', { value: 'READY', align: 'center', width: 2 });
+    readyText.setAttribute('position', '0 0 0.01');
+    this.readyButton.appendChild(readyText);
+    this.readyButton.addEventListener('mouseenter', () => this.readyButton.setAttribute('material', 'color', '#33aa33'));
+    this.readyButton.addEventListener('mouseleave', () => this.readyButton.setAttribute('material', 'color', '#228822'));
+    this.readyButton.addEventListener('click', () => {
+        if (this.socket && this.currentRoomCode) {
+            this.socket.emit('playerReady');
+            this.readyButton.setAttribute('material', 'color', '#115511');
+            readyText.setAttribute('text', 'value', 'WAITING...');
         }
     });
+    this.menuEl.appendChild(this.readyButton);
     
     // Room Code Display
     this.roomCodeText = document.createElement('a-entity');
@@ -76,10 +120,116 @@ AFRAME.registerComponent('multiplayer', {
         width: 3,
         color: '#FFFF00'
     });
-    this.roomCodeText.setAttribute('position', '0 -0.35 0.01');
+    this.roomCodeText.setAttribute('position', '0 -0.25 0.01');
     this.menuEl.appendChild(this.roomCodeText);
+    
+    // Status text (countdown, waiting for players, etc.)
+    this.statusText = document.createElement('a-entity');
+    this.statusText.setAttribute('text', {
+        value: '',
+        align: 'center',
+        width: 3,
+        color: '#00FF00'
+    });
+    this.statusText.setAttribute('position', '0 -0.4 0.01');
+    this.menuEl.appendChild(this.statusText);
+    
+    // Players list
+    this.playersListText = document.createElement('a-entity');
+    this.playersListText.setAttribute('text', {
+        value: '',
+        align: 'center',
+        width: 2.5,
+        color: '#AAAAAA'
+    });
+    this.playersListText.setAttribute('position', '0 -0.55 0.01');
+    this.menuEl.appendChild(this.playersListText);
 
     this.el.sceneEl.appendChild(this.menuEl);
+    
+    // Create the join keyboard (hidden by default)
+    this.createJoinKeyboard();
+  },
+  
+  createJoinKeyboard: function() {
+    this.keyboardContainer = document.createElement('a-entity');
+    this.keyboardContainer.setAttribute('visible', false);
+    this.keyboardContainer.setAttribute('position', '0 1.2 -0.8');
+    
+    // Keyboard background/label
+    const kbLabel = document.createElement('a-entity');
+    kbLabel.setAttribute('text', {
+        value: 'Enter Room Code:',
+        align: 'center',
+        width: 2,
+        color: '#FFFFFF'
+    });
+    kbLabel.setAttribute('position', '0 0.35 0');
+    this.keyboardContainer.appendChild(kbLabel);
+    
+    // Keyboard entity
+    this.roomCodeKeyboard = document.createElement('a-entity');
+    this.roomCodeKeyboard.setAttribute('super-keyboard', {
+        label: '',
+        inputColor: '#fff',
+        labelColor: '#aaa',
+        width: 1.2,
+        imagePath: 'assets/img/keyboard',
+        font: 'assets/fonts/Viga-Regular.json',
+        align: 'center',
+        model: 'superkeyboard',
+        keyColor: '#fff',
+        injectToRaycasterObjects: true,
+        filters: 'allupper',
+        keyHoverColor: '#fff',
+        maxLength: 4
+    });
+    this.roomCodeKeyboard.classList.add('raycastable');
+    this.roomCodeKeyboard.classList.add('keyboardRaycastable');
+    this.roomCodeKeyboard.addEventListener('superkeyboardinput', this.onKeyboardInput);
+    this.roomCodeKeyboard.addEventListener('superkeyboarddismiss', () => {
+        this.hideJoinKeyboard();
+    });
+    this.keyboardContainer.appendChild(this.roomCodeKeyboard);
+    
+    // Cancel button
+    const cancelBtn = document.createElement('a-entity');
+    cancelBtn.setAttribute('geometry', 'primitive: plane; width: 0.4; height: 0.1');
+    cancelBtn.setAttribute('material', 'color: #aa2222');
+    cancelBtn.setAttribute('position', '0 -0.35 0');
+    cancelBtn.classList.add('raycastable');
+    const cancelText = document.createElement('a-entity');
+    cancelText.setAttribute('text', { value: 'Cancel', align: 'center', width: 1.5 });
+    cancelText.setAttribute('position', '0 0 0.01');
+    cancelBtn.appendChild(cancelText);
+    cancelBtn.addEventListener('mouseenter', () => cancelBtn.setAttribute('material', 'color', '#cc3333'));
+    cancelBtn.addEventListener('mouseleave', () => cancelBtn.setAttribute('material', 'color', '#aa2222'));
+    cancelBtn.addEventListener('click', () => this.hideJoinKeyboard());
+    this.keyboardContainer.appendChild(cancelBtn);
+    
+    this.el.sceneEl.appendChild(this.keyboardContainer);
+  },
+  
+  showJoinKeyboard: function() {
+    this.menuEl.setAttribute('visible', false);
+    this.keyboardContainer.setAttribute('visible', true);
+    this.roomCodeKeyboard.setAttribute('super-keyboard', 'show', true);
+    this.roomCodeKeyboard.setAttribute('super-keyboard', 'value', '');
+  },
+  
+  hideJoinKeyboard: function() {
+    this.keyboardContainer.setAttribute('visible', false);
+    this.roomCodeKeyboard.setAttribute('super-keyboard', 'show', false);
+    this.menuEl.setAttribute('visible', true);
+  },
+  
+  onKeyboardInput: function(evt) {
+    const code = evt.detail.value;
+    if (code && code.length > 0) {
+        this.isHost = false;
+        this.socket.emit('joinRoom', code.toUpperCase());
+        this.hideJoinKeyboard();
+    }
   },
 
   createButton: function(label, y, callback) {
@@ -153,6 +303,10 @@ AFRAME.registerComponent('multiplayer', {
     this.socket.on('playerScoreUpdated', this.onPlayerScoreUpdated);
     this.socket.on('playerDisconnected', this.onPlayerDisconnected);
     this.socket.on('error', this.onError);
+    this.socket.on('songSelected', this.onSongSelected);
+    this.socket.on('playerReady', this.onPlayerReady);
+    this.socket.on('countdown', this.onCountdown);
+    this.socket.on('startSong', this.onStartSong);
   },
 
   disconnect: function () {
@@ -173,13 +327,25 @@ AFRAME.registerComponent('multiplayer', {
 
   onRoomJoined: function (data) {
     console.log('Joined room:', data);
+    this.currentRoomCode = data.code;
     if (this.roomCodeText) {
         this.roomCodeText.setAttribute('text', 'value', `Room: ${data.code} (${data.mode})`);
     }
-    // Hide menu after joining? Or keep it to show room code?
-    // For now, keep it but maybe move it or make it smaller.
-    // Actually, let's hide the buttons but keep the code.
-    // Simplified: Just update the text.
+    
+    // Show ready button once in room
+    if (this.readyButton) {
+        this.readyButton.setAttribute('visible', true);
+    }
+    
+    // Update status
+    if (this.statusText) {
+        const playerCount = Object.keys(data.players).length;
+        this.statusText.setAttribute('text', 'value', 
+            this.isHost ? 'You are the host. Pick a song when everyone is ready!' : 'Waiting for host to select a song...');
+    }
+    
+    // Update players list
+    this.updatePlayersList(data.players);
     
     // Clear existing players
     Object.keys(this.otherPlayers).forEach(id => this.removePlayer(id));
@@ -189,6 +355,87 @@ AFRAME.registerComponent('multiplayer', {
       if (id === this.socket.id) return;
       this.addPlayer(data.players[id]);
     });
+    
+    // If host, listen for song selection events (use pre-bound function)
+    if (this.isHost) {
+        this.el.sceneEl.addEventListener('menuchallengeselect', this.onHostSongSelect);
+    }
+  },
+  
+  updatePlayersList: function(players) {
+    if (!this.playersListText) return;
+    const playerIds = Object.keys(players);
+    const playerList = playerIds.map((id, i) => {
+        const isMe = this.socket && id === this.socket.id;
+        const ready = this.playersReady[id] ? '✓' : '○';
+        return `${ready} Player ${i + 1}${isMe ? ' (You)' : ''}`;
+    }).join('\n');
+    this.playersListText.setAttribute('text', 'value', playerList);
+  },
+  
+  onHostSongSelect: function(evt) {
+    if (!this.isHost || !this.socket || !this.currentRoomCode) return;
+    const challenge = evt.detail;
+    if (challenge && challenge.id) {
+        console.log('Host selected song:', challenge);
+        this.socket.emit('selectSong', {
+            id: challenge.id,
+            version: challenge.version,
+            difficulty: challenge.selectedDifficulty,
+            mode: challenge.mode
+        });
+    }
+  },
+  
+  onSongSelected: function(data) {
+    console.log('Song selected by host:', data);
+    if (this.statusText) {
+        this.statusText.setAttribute('text', 'value', 'Song selected! Click READY to start.');
+    }
+    
+    // Store song info for when we start
+    this.pendingSong = data;
+    
+    // If not host, load the song preview or wait for ready
+    if (!this.isHost) {
+        // Emit event to load the song in the menu
+        this.el.sceneEl.emit('multiplayersongselected', data, false);
+    }
+  },
+  
+  onPlayerReady: function(data) {
+    console.log('Player ready:', data);
+    this.playersReady[data.playerId] = true;
+    
+    // Update UI
+    if (this.statusText) {
+        this.statusText.setAttribute('text', 'value', `${data.readyCount}/${data.totalPlayers} players ready`);
+    }
+    
+    // Update players list with ready status
+    // (We'd need the full players object here, simplified for now)
+  },
+  
+  onCountdown: function(data) {
+    console.log('Countdown:', data.count);
+    if (this.statusText) {
+        if (data.count > 0) {
+            this.statusText.setAttribute('text', 'value', `Starting in ${data.count}...`);
+            this.statusText.setAttribute('text', 'color', '#FFFF00');
+        } else {
+            this.statusText.setAttribute('text', 'value', 'GO!');
+            this.statusText.setAttribute('text', 'color', '#00FF00');
+        }
+    }
+  },
+  
+  onStartSong: function(data) {
+    console.log('Starting song!', data);
+    // Hide multiplayer menu
+    if (this.menuEl) this.menuEl.setAttribute('visible', false);
+    
+    // Emit event to start the song
+    this.el.sceneEl.emit('multiplayerstartgame', data, false);
   },
 
   onError: function(data) {
@@ -293,10 +540,11 @@ AFRAME.registerComponent('multiplayer', {
   },
 
   tick: function () {
-    if (!this.socket || !this.data.enabled) return;
+    if (!this.socket) return;
+    if (this.data.gameMode !== 'multiplayer' && !this.data.enabled) return;
 
     const camera = this.el.sceneEl.camera;
-    if (!camera) return;
+    if (!camera || !camera.el) return;
 
     const position = camera.el.object3D.position;
     const rotation = camera.el.object3D.rotation;

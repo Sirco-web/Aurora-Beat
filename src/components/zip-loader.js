@@ -62,8 +62,15 @@ AFRAME.registerComponent('zip-loader', {
   },
 
   onMessage: function (evt) {
+    if (!evt || !evt.data) {
+      console.error('[zip-loader] Invalid message received');
+      this.el.emit('songloaderror');
+      return;
+    }
+
     switch (evt.data.message) {
       case 'error': {
+        console.error('[zip-loader] Worker reported error:', evt.data.error || 'Unknown error');
         this.el.emit('songloaderror');
         break;
       }
@@ -76,11 +83,22 @@ AFRAME.registerComponent('zip-loader', {
         this.cachedVersion = evt.data.version;
         this.cachedZip = evt.data.data;
 
+        // Validate beats data exists and is not empty.
+        if (!evt.data.data || !evt.data.data.beats) {
+          console.error('[zip-loader] Invalid or missing beats data in ZIP');
+          this.cachedZip = null;
+          if (evt.data.version === this.data.version) {
+            this.el.emit('songloaderror');
+          }
+          return;
+        }
+
         // Check for faulty empty beats object.
         let key;
         const beats = evt.data.data.beats;
         for (key in beats) { break; }
         if (!key) {
+          console.error('[zip-loader] Beats object is empty');
           this.cachedZip = null;
           if (evt.data.version === this.data.version) {
             this.el.emit('songloaderror');

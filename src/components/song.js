@@ -128,8 +128,16 @@ AFRAME.registerComponent('song', {
   processAudio: function () {
     this.el.sceneEl.emit('songprocessstart', null, false);
     this.getAudio().then(source => {
+      if (!source) {
+        console.error('[song] Failed to get audio source');
+        this.el.sceneEl.emit('songloaderror', null, false);
+        return;
+      }
       this.el.sceneEl.emit('songprocessfinish', null, false);
-    }).catch(console.error);
+    }).catch(err => {
+      console.error('[song] Error processing audio:', err);
+      this.el.sceneEl.emit('songloaderror', null, false);
+    });
   },
 
   getAudio: function () {
@@ -169,10 +177,16 @@ AFRAME.registerComponent('song', {
   onGameOver: function () {
     this.isAudioPlaying = false;
 
-    // Playback rate.
-    const playbackRate = this.source.playbackRate;
-    playbackRate.setValueAtTime(playbackRate.value, this.context.currentTime);
-    playbackRate.linearRampToValueAtTime(0, this.context.currentTime + GAME_OVER_LENGTH);
+    if (!this.source) {
+      console.warn('[song] onGameOver called but no audio source');
+      return;
+    }
+
+    try {
+      // Playback rate.
+      const playbackRate = this.source.playbackRate;
+      playbackRate.setValueAtTime(playbackRate.value, this.context.currentTime);
+      playbackRate.linearRampToValueAtTime(0, this.context.currentTime + GAME_OVER_LENGTH);
 
     // Gain.
     const gain = this.audioAnalyser.gainNode.gain;
@@ -183,6 +197,10 @@ AFRAME.registerComponent('song', {
       if (!this.data.isGameOver) { return; }
       this.stopAudio();
     }, 3500);
+    } catch (e) {
+      console.error('[song] Error in onGameOver:', e);
+      this.stopAudio();
+    }
   },
 
   onRestart: function () {
@@ -213,12 +231,23 @@ AFRAME.registerComponent('song', {
   },
 
   startAudio: function () {
-    const gain = this.audioAnalyser.gainNode.gain;
-    gain.setValueAtTime(BASE_VOLUME, this.context.currentTime);
-    this.songStartTime = this.context.currentTime;
-    this.source.onended = this.onSongComplete;
-    this.source.start(0, skipDebug || 0);
-    this.isAudioPlaying = true;
+    if (!this.source) {
+      console.error('[song] Cannot start audio - no source available');
+      this.el.sceneEl.emit('songloaderror', null, false);
+      return;
+    }
+
+    try {
+      const gain = this.audioAnalyser.gainNode.gain;
+      gain.setValueAtTime(BASE_VOLUME, this.context.currentTime);
+      this.songStartTime = this.context.currentTime;
+      this.source.onended = this.onSongComplete;
+      this.source.start(0, skipDebug || 0);
+      this.isAudioPlaying = true;
+    } catch (e) {
+      console.error('[song] Error starting audio:', e);
+      this.el.sceneEl.emit('songloaderror', null, false);
+    }
   },
 
   getCurrentTime: function () {

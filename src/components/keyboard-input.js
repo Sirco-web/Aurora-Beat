@@ -1,5 +1,6 @@
 /**
  * Capture physical keyboard input and forward to super-keyboard.
+ * Also prevents WASD camera movement when keyboard is active.
  */
 AFRAME.registerComponent('keyboard-input', {
   init: function () {
@@ -20,17 +21,40 @@ AFRAME.registerComponent('keyboard-input', {
     if (!keyboard) { return; }
 
     // Only capture input if the keyboard is visible
-    if (!keyboardEl.getAttribute('visible')) { return; }
+    if (!keyboardEl.object3D.visible) { return; }
+
+    // Prevent WASD and other keys from moving the camera when keyboard is active
+    // This stops the default A-Frame wasd-controls from intercepting these keys
+    const movementKeys = ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    if (movementKeys.includes(evt.key) || evt.key.length === 1) {
+      evt.stopPropagation();
+    }
+
+    // Handle Enter key
+    if (evt.key === 'Enter') {
+      keyboard.accept();
+      evt.preventDefault();
+      return;
+    }
+
+    // Handle Escape key
+    if (evt.key === 'Escape') {
+      keyboard.dismiss();
+      evt.preventDefault();
+      return;
+    }
 
     // Handle Backspace
     if (evt.key === 'Backspace') {
       let value = keyboard.data.value;
       if (value.length > 0) {
         value = value.substring(0, value.length - 1);
+        keyboard.rawValue = value;
         keyboard.data.value = value;
         keyboard.updateTextInput(value);
         keyboard.el.emit('superkeyboardchange', {value: value});
       }
+      evt.preventDefault();
       return;
     }
 
@@ -43,9 +67,12 @@ AFRAME.registerComponent('keyboard-input', {
       }
       
       value += evt.key;
+      keyboard.rawValue = value;
       keyboard.data.value = value;
-      keyboard.updateTextInput(value);
+      keyboard.updateTextInput(keyboard.filter(value));
       keyboard.el.emit('superkeyboardchange', {value: value});
+      keyboard.updateCursorPosition();
+      evt.preventDefault();
     }
   }
 });

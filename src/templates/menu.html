@@ -64,6 +64,23 @@
 <a-entity id="menu" bind__visible="isMenuVisible" position="0 1.4 -2.3"
   animation__position="property: object3D.position.z; to: -2; dur: 1500; easing: easeInOutCubic; delay: 300; startEvents: startgame">
 
+  <!-- Aurora Beat Title -->
+  <a-entity id="menuTitle" position="0 1.15 0.01">
+    <a-entity
+      mixin="font"
+      text="value: AURORA BEAT; align: center; width: 4; wrapCount: 20; color: #FFFFFF"
+      bind__text="color: colorPrimary"
+      render-order="menuText"
+      position="0 0 0"
+      animation="property: object3D.position.y; from: 0.05; to: 0; dur: 800; easing: easeOutCubic; delay: 400"
+      animation__opacity="property: components.text.material.uniforms.opacity.value; from: 0; to: 1; dur: 600; delay: 300"></a-entity>
+    <a-entity
+      mixin="font"
+      text="value: ━━━━━━━━━━━━━━━━━━━━━━━━━; align: center; width: 3; color: #666666"
+      render-order="menuText"
+      position="0 -0.12 0"></a-entity>
+  </a-entity>
+
   <a-entity id="menuBackground"
     bind__menu-midsection="active: !!menuSelectedChallenge.id && (mainMenuActive || difficultyFilterMenuOpen) || difficultyFilterMenuOpen; selectedChallenge: menuSelectedChallenge.id"
     bind-toggle__raycastable="menuActive || genreMenuOpen || isSearching || difficultyFilterMenuOpen"

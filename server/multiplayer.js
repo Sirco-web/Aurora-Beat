@@ -15,7 +15,7 @@ const io = socketIo(server, {
 // Serve static files from the root directory
 app.use(express.static(path.join(__dirname, '../')));
 
-const rooms = {}; // { roomCode: { mode: 'classic', players: [] } }
+const rooms = {}; // { roomCode: { mode: 'classic', players: [], host: socketId, song: null, readyPlayers: [] } }
 const players = {}; // { socketId: { room: 'ABCD', ... } }
 
 function generateRoomCode() {
@@ -31,7 +31,10 @@ io.on('connection', (socket) => {
     
     rooms[roomCode] = {
       mode: mode,
-      players: []
+      players: [],
+      host: socket.id,
+      song: null,
+      readyPlayers: []
     };
     
     joinRoom(socket, roomCode);
@@ -56,17 +59,20 @@ io.on('connection', (socket) => {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       score: 0,
-      combo: 0
+      combo: 0,
+      ready: false
     };
 
     socket.join(roomCode);
     room.players.push(socket.id);
 
-    // Send room info to player
+    // Send room info to player (including whether they're the host)
     socket.emit('roomJoined', { 
       code: roomCode, 
       mode: room.mode,
-      players: getRoomPlayers(roomCode)
+      players: getRoomPlayers(roomCode),
+      isHost: room.host === socket.id,
+      song: room.song
     });
 
     // Broadcast new player to others in room
@@ -83,6 +89,83 @@ io.on('connection', (socket) => {
       });
     }
     return roomPlayers;
+  }
+  
+  // Host selects a song
+  socket.on('selectSong', (songData) => {
+    const player = players[socket.id];
+    if (!player || !player.room) return;
+    
+    const room = rooms[player.room];
+    if (!room) return;
+    
+    // Only host can select song
+    if (room.host !== socket.id) {
+      socket.emit('error', { message: 'Only the host can select a song' });
+      return;
+    }
+    
+    room.song = songData;
+    room.readyPlayers = []; // Reset ready status when song changes
+    
+    // Broadcast song selection to all players in room
+    io.to(player.room).emit('songSelected', songData);
+    console.log(`Song selected in room ${player.room}:`, songData);
+  });
+  
+  // Player marks ready
+  socket.on('playerReady', () => {
+    const player = players[socket.id];
+    if (!player || !player.room) return;
+    
+    const room = rooms[player.room];
+    if (!room) return;
+    
+    // Can't ready without a song
+    if (!room.song) {
+      socket.emit('error', { message: 'Wait for host to select a song first' });
+      return;
+    }
+    
+    player.ready = true;
+    if (!room.readyPlayers.includes(socket.id)) {
+      room.readyPlayers.push(socket.id);
+    }
+    
+    // Broadcast ready status
+    io.to(player.room).emit('playerReady', {
+      playerId: socket.id,
+      readyCount: room.readyPlayers.length,
+      totalPlayers: room.players.length
+    });
+    
+    // Check if all players are ready
+    if (room.readyPlayers.length === room.players.length && room.players.length >= 1) {
+      startCountdown(player.room);
+    }
+  });
+  
+  function startCountdown(roomCode) {
+    const room = rooms[roomCode];
+    if (!room) return;
+    
+    let count = 3;
+    const countdownInterval = setInterval(() => {
+      io.to(roomCode).emit('countdown', { count });
+      count--;
+      
+      if (count < 0) {
+        clearInterval(countdownInterval);
+        // Start the song!
+        io.to(roomCode).emit('startSong', room.song);
+        
+        // Reset ready state for next round
+        room.readyPlayers = [];
+        room.players.forEach(id => {
+          if (players[id]) players[id].ready = false;
+        });
+      }
+    }, 1000);
   }
 
   socket.on('playerMovement', (movementData) => {

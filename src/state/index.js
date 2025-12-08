@@ -372,6 +372,52 @@ AFRAME.registerState({
     gamemenuresume: state => {
       state.isPaused = false;
     },
+    
+    /**
+     * Multiplayer: Start game when host selected a song and all players are ready.
+     * This is similar to playbuttonclick but uses the song data from server.
+     */
+    multiplayerstartgame: (state, payload) => {
+      if (!payload || !payload.id) { return; }
+      
+      // Check if this song was previously marked as bad
+      if (badSongs[payload.id]) { 
+        console.warn('Multiplayer: Song is in badSongs list', payload.id);
+        return; 
+      }
+      
+      // Look up the challenge from the data store
+      let challenge = challengeDataStore[payload.id];
+      if (!challenge) { 
+        console.warn('Multiplayer: Could not find challenge data for', payload.id);
+        return; 
+      }
+      
+      resetScore(state);
+      
+      // Set challenge from the stored data
+      Object.assign(state.challenge, challenge);
+      
+      // Override with multiplayer-specific data
+      if (payload.difficulty) {
+        state.challenge.difficulty = payload.difficulty;
+      }
+      if (payload.mode) {
+        state.gameMode = payload.mode;
+      }
+      
+      // Reset menu and start loading
+      state.menuActive = false;
+      state.menuSelectedChallenge.id = '';
+      state.menuSelectedChallenge.difficulty = '';
+      state.menuSelectedChallenge.beatmapCharacteristic = '';
+      
+      state.isSearching = false;
+      state.isLoading = true;
+      state.loadingText = 'Loading multiplayer game...';
+      
+      gtag('event', 'multiplayer_start', { event_label: payload.id });
+    },
 
     gamemenurestart: state => {
       resetScore(state);
@@ -452,6 +498,30 @@ AFRAME.registerState({
     leaderboardqualify: state => {
       if (!state.has6DOFVR) { return; }
       state.leaderboardQualified = true;
+    },
+    
+    /**
+     * Multiplayer: Host selected a song, sync it to other players' menus.
+     * This allows non-host players to see/preview the selected song.
+     */
+    multiplayersongselected: (state, payload) => {
+      if (!payload || !payload.id) { return; }
+      
+      // Look up the challenge from the data store
+      let challenge = challengeDataStore[payload.id];
+      if (!challenge) { 
+        console.warn('Multiplayer: Could not find challenge data for synced song', payload.id);
+        return; 
+      }
+      
+      // Set it as the menu selected challenge so player can see it
+      Object.assign(state.menuSelectedChallenge, challenge);
+      state.menuSelectedChallenge.songName = truncate(challenge.metadata.songName, 24);
+      
+      // If difficulty was specified, select it
+      if (payload.difficulty) {
+        state.menuSelectedChallenge.difficulty = payload.difficulty;
+      }
     },
 
     /**

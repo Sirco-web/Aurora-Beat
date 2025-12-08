@@ -68,6 +68,8 @@ AFRAME.registerComponent('super-keyboard', {
     this.kbImg.classList.add('superKeyboardImage');
     this.kbImg.addEventListener('raycaster-intersected', this.hover.bind(this));
     this.kbImg.addEventListener('raycaster-intersected-cleared', this.blur.bind(this));
+    // Also handle direct mouse clicks on the keyboard image
+    this.kbImg.addEventListener('click', this.onDirectClick.bind(this));
     this.el.appendChild(this.kbImg);
 
     // Create label.
@@ -493,6 +495,36 @@ AFRAME.registerComponent('super-keyboard', {
     }
     this.el.emit('superkeyboarddismiss');
     this.data.show = false;
+  },
+
+  /**
+   * Handle direct mouse click on keyboard for non-VR web mode.
+   * This gets the UV coordinates from the click intersection and finds the key.
+   */
+  onDirectClick: function (evt) {
+    // If we already have a keyHover from raycaster tick, use the normal click handler
+    if (this.keyHover) { return; }
+    
+    // Try to get UV from the event detail (A-Frame cursor/raycaster click)
+    var uv = null;
+    if (evt.detail && evt.detail.intersection && evt.detail.intersection.uv) {
+      uv = evt.detail.intersection.uv;
+    }
+    
+    if (!uv) { return; }
+    
+    // Find the key at this UV position
+    var keys = KEYBOARDS[this.data.model].layout;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (uv.x > k.x && uv.x < k.x + k.w && (1.0 - uv.y) > k.y && (1.0 - uv.y) < k.y + k.h) {
+        // Found the key - set it as hover and trigger click
+        this.keyHover = k;
+        this.click(evt);
+        this.keyHover = null; // Clear after click
+        return;
+      }
+    }
   },
 
   blur: function (ev) {
