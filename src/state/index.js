@@ -94,7 +94,6 @@ AFRAME.registerState({
     genre: '',
     genres: require('../constants/genres'),
     genreMenuOpen: false,
-    outOfBoundsWarningEnabled: true,
     has3DOFVR: false,
     has6DOFVR: false,
     hasSongLoadError: false,
