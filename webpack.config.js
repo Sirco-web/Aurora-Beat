@@ -6,7 +6,8 @@ const COLORS = require('./src/constants/colors.js');
 
 PLUGINS = [
   new webpack.EnvironmentPlugin(['DEBUG_LOG', 'NODE_ENV']),
-  new webpack.HotModuleReplacementPlugin(),
+  // Only enable HMR in development
+  ...(process.env.NODE_ENV !== 'production' ? [new webpack.HotModuleReplacementPlugin()] : []),
   // @firebase/polyfill not loading, stub it with some random module.
   new webpack.NormalModuleReplacementPlugin(
     /firebase\/polyfill/,
