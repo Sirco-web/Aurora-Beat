@@ -15,6 +15,8 @@ PLUGINS = [
 ];
 
 module.exports = {
+  // Disable source maps in production to save memory ("Download RAM" strategy)
+  devtool: process.env.NODE_ENV === 'production' ? false : 'eval-source-map',
   optimization: {
     minimize: process.env.NODE_ENV === 'production'
   },

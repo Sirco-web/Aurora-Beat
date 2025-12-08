@@ -14,19 +14,27 @@
     <meta property="twitter:image" content="https://supermedium.com/moonrider/assets/img/splash.jpg">
 
     <link rel="shortcut icon" href="assets/img/favicon.png" type="image/x-icon">
+    <script>
+      window.addEventListener('error', function(e) {
+        var errorText = e.message || 'Unknown Error';
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.background = 'red';
+        div.style.color = 'white';
+        div.style.zIndex = '99999999';
+        div.style.padding = '10px';
+        div.innerText = 'Error: ' + errorText;
+        document.body.appendChild(div);
+      });
+    </script>
     <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@2c4509aa1a9a3c447c08be9facfea0c7d6a9e156/dist/aframe-master.min.js"></script>
     <script src="build/build.js?v=3"></script>
   </head>
   <body>
     <div id="app"></div>
     <div id="vrButton" title="Enter VR / Fullscreen"><p>Click Here to Enter VR</p></div>
-
-    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-111391431-16"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'UA-111391431-16');
-    </script>
   </body>
 </html>
