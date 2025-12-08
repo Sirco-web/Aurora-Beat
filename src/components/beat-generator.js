@@ -155,6 +155,12 @@ AFRAME.registerComponent('beat-generator', {
    */
   processBeats: function () {
     if (this.data.hasSongLoadError) { return; }
+    
+    if (!this.beatData) {
+      console.error('[beat-generator] Beat data not found for difficulty: ' + this.data.difficulty);
+      return;
+    }
+
     // if there is version and first character is 3, convert to 2.xx
     if (this.beatData.version  && this.beatData.version.charAt(0) === '3') {
       this.beatData = convertBeatData_320_to_2xx(this.beatData);

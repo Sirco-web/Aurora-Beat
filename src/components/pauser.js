@@ -17,8 +17,8 @@ AFRAME.registerComponent('pauser', {
       if (evt.detail.name === 'vive-controls') {
         this.el.addEventListener('menudown', this.pauseGame);
       } else {
-        this.el.addEventListener('thumbstickdown', this.pauseGame);
-        this.el.addEventListener('trackpaddown', this.pauseGame);
+        // this.el.addEventListener('thumbstickdown', this.pauseGame);
+        // this.el.addEventListener('trackpaddown', this.pauseGame);
       }
     });
 
