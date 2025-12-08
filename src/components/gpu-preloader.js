@@ -27,25 +27,37 @@ AFRAME.registerComponent('gpu-preloader', {
   // Standard material.map texture got from a dom selector
   preloadFromSelector: function (selector) {
     const el = document.querySelector(selector);
-    this.preloadTexture(el.getObject3D('mesh').material.map);
+    if (!el) { return; }
+    const mesh = el.getObject3D('mesh');
+    if (!mesh || !mesh.material || !mesh.material.map) { return; }
+    this.preloadTexture(mesh.material.map);
   },
 
   // List of textures gathered in `materials` system
   preloadMaterialsComponentTextures: function () {
+    if (!this.el.systems.materials) { return; }
     const textures = this.el.systems.materials.textureList;
+    if (!textures) { return; }
     for (var i = 0; i < textures.length; i++) {
       this.preloadTexture(textures[i]);
     }
   },
 
   preloadKeyboard: function () {
-    const keyboard = document.getElementById('keyboard').components['super-keyboard'];
-    this.preloadTexture(keyboard.kbImg.getObject3D('mesh').material.map);
-    this.preloadTexture(keyboard.keyColorPlane.getObject3D('mesh').material.map);
+    const keyboardEl = document.getElementById('keyboard');
+    if (!keyboardEl || !keyboardEl.components['super-keyboard']) { return; }
+    const keyboard = keyboardEl.components['super-keyboard'];
+    if (keyboard.kbImg && keyboard.kbImg.getObject3D('mesh')) {
+      this.preloadTexture(keyboard.kbImg.getObject3D('mesh').material.map);
+    }
+    if (keyboard.keyColorPlane && keyboard.keyColorPlane.getObject3D('mesh')) {
+      this.preloadTexture(keyboard.keyColorPlane.getObject3D('mesh').material.map);
+    }
   },
 
   preloadSlice: function () {
     const button = document.getElementById('searchPrevPage');
+    if (!button || !button.components.slice9) { return; }
     this.preloadTexture(button.components.slice9.material.map);
   },
 
